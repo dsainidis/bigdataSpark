@@ -1,5 +1,6 @@
 package com.bigdata.spark
 
+import org.apache.spark.SparkContext
 import org.apache.spark.ml.feature.RegexTokenizer
 import org.apache.spark.ml.feature.CountVectorizer
 import org.apache.spark.sql.{Row, SparkSession}
@@ -11,6 +12,7 @@ import scala.language.postfixOps
 
 object Main {
   def main(args: Array[String]): Unit = {
+
     val ss = SparkSession.builder().master("local[2]").appName("task1").getOrCreate()
     ss.sparkContext.setLogLevel("ERROR")
 
@@ -48,9 +50,11 @@ object Main {
     countVectors.printSchema()
     countVectors.show(20)
 
-    val lda_countVector = countVectors.map { case Row(id: Long, countVector: Vector) => (id, countVector) }
+    val lda_countVector = countVectors.rdd.map({case Row(id: Long, countVector: Vector) => (id, countVector) })
 
-    lda_countVector.printSchema()
+
+
+    lda_countVector.foreach(println)
 
     val lda = new LDA()
 
@@ -60,6 +64,20 @@ object Main {
       .setDocConcentration(-1) // use default values
       .setTopicConcentration(-1) // use default values
 
+
+    /*val ldaModel = lda.run(lda_countVector)
+
+    val topicIndices = ldaModel.describeTopics(maxTermsPerTopic = 5)
+    val vocabList = vectorizer.vocabulary
+    val topics = topicIndices.map { case (terms, termWeights) =>
+      terms.map(vocabList(_)).zip(termWeights)
+    }
+    println(s"50 topics:")
+    topics.zipWithIndex.foreach { case (topic, i) =>
+      println(s"TOPIC $i")
+      topic.foreach { case (term, weight) => println(s"$term\t$weight") }
+      println(s"==========")
+    }*/
   }
 }
 
