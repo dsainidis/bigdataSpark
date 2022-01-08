@@ -3,6 +3,8 @@ name := "bigdataSpark"
 version := "0.1"
 
 scalaVersion := "2.12.8"
+//scalaVersion := "3.0.1"
+
 
 //val sparkVersion = "3.0.3"
 val sparkVersion = "3.2.0"

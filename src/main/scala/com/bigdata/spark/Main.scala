@@ -1,12 +1,12 @@
 package com.bigdata.spark
 
-import org.apache.spark.SparkContext
+import org.apache.spark.{SparkContext, sql}
 import org.apache.spark.ml.feature.RegexTokenizer
 import org.apache.spark.ml.feature.CountVectorizer
-import org.apache.spark.sql.{Row, SparkSession}
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
-import org.apache.spark.mllib.linalg.Vector
-import org.apache.spark.mllib.clustering.{EMLDAOptimizer, LDA, OnlineLDAOptimizer}
+import org.apache.spark.ml.clustering.LDA
+import org.apache.spark.ml.feature.IDF
 
 import scala.language.postfixOps
 
@@ -19,11 +19,11 @@ object Main {
     import ss.implicits._
 
     val inputFile = "./sample_preprocessed.csv"
-    val rawDF = ss.read.option("header", "true").csv(inputFile)
-    val tempDF = rawDF.select("sitting_date", "speech_processed")
-    val yearDF = tempDF.select("sitting_date").rdd.map(x => x.toString().split("/")(2).substring(0, 4).toInt).toDF("year")
+    val inputDF = ss.read.option("header", "true").csv(inputFile)
+    val tempDF = inputDF.select("sitting_date", "speech_processed")
+    val yearColumn = tempDF.select("sitting_date").rdd.map(x => x.toString().split("/")(2).substring(0, 4).toInt).toDF("year")
 
-    val df = tempDF.withColumn("id", monotonically_increasing_id()).join(yearDF).drop("sitting_date").na.drop(Seq("speech_processed"))
+    val df = tempDF.withColumn("id", monotonically_increasing_id()).join(yearColumn).drop("sitting_date").na.drop(Seq("speech_processed"))
 
     df.printSchema()
     df.show(10)
@@ -33,51 +33,71 @@ object Main {
       .setInputCol("speech_processed")
       .setOutputCol("tokens")
 
-    val tokenized_df = tokenizer.transform(df).drop("speech_processed", "year")
+    val tokenized_df = tokenizer.transform(df)
 
     tokenized_df.printSchema()
     tokenized_df.show(10)
 
     val vectorizer = new CountVectorizer()
       .setInputCol("tokens")
-      .setOutputCol("features")
+      .setOutputCol("rawFeatures")
       .setVocabSize(10000)
-      //.setMinDF(5)
+      .setMinDF(3)
       .fit(tokenized_df)
 
-    val countVectors = vectorizer.transform(tokenized_df).select("id", "features")
+    val vectorizedDF = vectorizer.transform(tokenized_df)
+    val vocab = vectorizer.vocabulary
 
-    countVectors.printSchema()
-    countVectors.show(20)
+    vectorizedDF.printSchema()
+    vectorizedDF.show(10)
 
-    val lda_countVector = countVectors.rdd.map({case Row(id: Long, countVector: Vector) => (id, countVector) })
+    val idf = new IDF()
+      .setInputCol("rawFeatures")
+      .setOutputCol("features")
+      .fit(vectorizedDF)
 
+    val inverseDF = idf.transform(vectorizedDF)
 
+    inverseDF.printSchema()
+    inverseDF.show(10)
 
-    lda_countVector.foreach(println)
+    val corpus = inverseDF.select("id", "features")
+    corpus.show(10)
 
     val lda = new LDA()
+      .setOptimizer("em")
+      .setK(10)
+      .setMaxIter(10)
 
-    lda.setOptimizer(new EMLDAOptimizer())
-      .setK(50)
-      .setMaxIterations(3)
-      .setDocConcentration(-1) // use default values
-      .setTopicConcentration(-1) // use default values
+    val ldaModel = lda.fit(corpus)
+
+    val ll = ldaModel.logLikelihood(corpus)
+    val lp = ldaModel.logPerplexity(corpus)
+    println(s"The lower bound on the log likelihood of the entire corpus: $ll")
+    println(s"The upper bound on perplexity: $lp")
+
+    // Describe topics.
+    val topics = ldaModel.describeTopics(10)
+    println("The topics described by their top-weighted terms:")
+    topics.show(false)
+    topics.printSchema()
+
+    val wordsColumn = topics.select("termIndices")
+    wordsColumn.printSchema()
+    wordsColumn.show(10)
+
+    println(vocab(6))
+    println(vocab(5))
+    println(vocab(3))
+    println(vocab(15))
 
 
-    /*val ldaModel = lda.run(lda_countVector)
 
-    val topicIndices = ldaModel.describeTopics(maxTermsPerTopic = 5)
-    val vocabList = vectorizer.vocabulary
-    val topics = topicIndices.map { case (terms, termWeights) =>
-      terms.map(vocabList(_)).zip(termWeights)
-    }
-    println(s"50 topics:")
-    topics.zipWithIndex.foreach { case (topic, i) =>
-      println(s"TOPIC $i")
-      topic.foreach { case (term, weight) => println(s"$term\t$weight") }
-      println(s"==========")
-    }*/
+    // Shows the result.
+    //val transformed = ldaModel.transform(vectorizedDF)
+    //transformed.show(false)
+    // $example off$
+
   }
 }
 
