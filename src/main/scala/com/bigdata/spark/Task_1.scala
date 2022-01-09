@@ -1,10 +1,11 @@
 package com.bigdata.spark
 
-import org.apache.spark.ml.feature.{CountVectorizer, RegexTokenizer}
-import org.apache.spark.mllib.clustering.{LDA, OnlineLDAOptimizer}
-import org.apache.spark.mllib.linalg.Vector
-import org.apache.spark.sql.{Row, SparkSession}
-import org.apache.spark.sql.functions.monotonically_increasing_id
+import org.apache.spark.ml.clustering.LDA
+import org.apache.spark.ml.feature.{CountVectorizer, IDF, RegexTokenizer}
+import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.functions.{col, monotonically_increasing_id, udf}
+
+import scala.collection.mutable
 
 object Task_1 {
 
@@ -14,11 +15,11 @@ object Task_1 {
   import ss.implicits._
 
   val inputFile = "./sample_preprocessed.csv"
-  val rawDF = ss.read.option("header", "true").csv(inputFile)
-  val tempDF = rawDF.select("sitting_date", "speech_processed")
-  val yearDF = tempDF.select("sitting_date").rdd.map(x => x.toString().split("/")(2).substring(0, 4).toInt).toDF("year")
+  val inputDF = ss.read.option("header", "true").csv(inputFile)
+  val tempDF = inputDF.select("sitting_date", "speech_processed")
+  val yearColumn = tempDF.select("sitting_date").rdd.map(x => x.toString().split("/")(2).substring(0, 4).toInt).toDF("year")
 
-  val df = tempDF.withColumn("id", monotonically_increasing_id()).join(yearDF).drop("sitting_date").na.drop(Seq("speech_processed"))
+  val df = tempDF.withColumn("id", monotonically_increasing_id()).join(yearColumn).drop("sitting_date").na.drop(Seq("speech_processed"))
 
   df.printSchema()
   df.show(10)
@@ -28,33 +29,61 @@ object Task_1 {
     .setInputCol("speech_processed")
     .setOutputCol("tokens")
 
-  val tokenized_df = tokenizer.transform(df).drop("speech_processed", "year")
+  val tokenized_df = tokenizer.transform(df)
 
   tokenized_df.printSchema()
   tokenized_df.show(10)
 
   val vectorizer = new CountVectorizer()
     .setInputCol("tokens")
-    .setOutputCol("features")
+    .setOutputCol("rawFeatures")
     .setVocabSize(10000)
-    //.setMinDF(5)
+    .setMinDF(3)
     .fit(tokenized_df)
 
-  val countVectors = vectorizer.transform(tokenized_df).select("id", "features")
+  val vectorizedDF = vectorizer.transform(tokenized_df)
+  val vocab = vectorizer.vocabulary  //vocab should be broadcasted
 
-  countVectors.printSchema()
-  countVectors.show(20)
+  vectorizedDF.printSchema()
+  vectorizedDF.show(10)
 
-  val lda_countVector = countVectors.map { case Row(id: Long, countVector: Vector) => (id, countVector) }
+  val idf = new IDF()
+    .setInputCol("rawFeatures")
+    .setOutputCol("features")
+    .fit(vectorizedDF)
 
-  lda_countVector.printSchema()
+  val inverseDF = idf.transform(vectorizedDF)
+
+  inverseDF.printSchema()
+  inverseDF.show(10)
+
+  val corpus = inverseDF.select("id", "features")
+  corpus.show(10)
 
   val lda = new LDA()
+    .setOptimizer("em")
+    .setK(10)
+    .setMaxIter(50)
 
-  lda.setOptimizer(new OnlineLDAOptimizer().setMiniBatchFraction(0.8))
-    .setK(50)
-    .setMaxIterations(3)
-    .setDocConcentration(-1) // use default values
-    .setTopicConcentration(-1) // use default values
+  val ldaModel = lda.fit(corpus)
 
+  val ll = ldaModel.logLikelihood(corpus)
+  val lp = ldaModel.logPerplexity(corpus)
+  println(s"The lower bound on the log likelihood of the entire corpus: $ll")
+  println(s"The upper bound on perplexity: $lp")
+
+  // Describe topics.
+  val rawTopics = ldaModel.describeTopics(10)
+  rawTopics.printSchema()
+
+  val termIndicesToWords = udf( (x : mutable.WrappedArray[Int]) => { x.map(i => vocab(i)) })
+
+  println("The topics described by their top-weighted terms:")
+  val topics = rawTopics.withColumn("topicWords", termIndicesToWords(col("termIndices")))
+  topics.printSchema()
+  topics.select("topic", "topicWords").show(10, truncate = false)
+
+  // Shows the result.
+  val transformed = ldaModel.transform(corpus)
+  transformed.show(false)
 }

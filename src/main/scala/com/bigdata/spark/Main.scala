@@ -1,6 +1,5 @@
 package com.bigdata.spark
 
-import org.apache.spark.{SparkContext, sql}
 import org.apache.spark.ml.feature.RegexTokenizer
 import org.apache.spark.ml.feature.CountVectorizer
 import org.apache.spark.sql.SparkSession
@@ -8,6 +7,7 @@ import org.apache.spark.sql.functions._
 import org.apache.spark.ml.clustering.LDA
 import org.apache.spark.ml.feature.IDF
 
+import scala.collection.mutable
 import scala.language.postfixOps
 
 object Main {
@@ -46,7 +46,7 @@ object Main {
       .fit(tokenized_df)
 
     val vectorizedDF = vectorizer.transform(tokenized_df)
-    val vocab = vectorizer.vocabulary
+    val vocab = vectorizer.vocabulary  //vocab should be broadcasted
 
     vectorizedDF.printSchema()
     vectorizedDF.show(10)
@@ -67,7 +67,7 @@ object Main {
     val lda = new LDA()
       .setOptimizer("em")
       .setK(10)
-      .setMaxIter(10)
+      .setMaxIter(50)
 
     val ldaModel = lda.fit(corpus)
 
@@ -77,26 +77,19 @@ object Main {
     println(s"The upper bound on perplexity: $lp")
 
     // Describe topics.
-    val topics = ldaModel.describeTopics(10)
+    val rawTopics = ldaModel.describeTopics(10)
+    rawTopics.printSchema()
+
+    val termIndicesToWords = udf( (x : mutable.WrappedArray[Int]) => { x.map(i => vocab(i)) })
+
     println("The topics described by their top-weighted terms:")
-    topics.show(false)
+    val topics = rawTopics.withColumn("topicWords", termIndicesToWords(col("termIndices")))
     topics.printSchema()
-
-    val wordsColumn = topics.select("termIndices")
-    wordsColumn.printSchema()
-    wordsColumn.show(10)
-
-    println(vocab(6))
-    println(vocab(5))
-    println(vocab(3))
-    println(vocab(15))
-
-
+    topics.select("topic", "topicWords").show(10, truncate = false)
 
     // Shows the result.
-    //val transformed = ldaModel.transform(vectorizedDF)
-    //transformed.show(false)
-    // $example off$
+    val transformed = ldaModel.transform(corpus)
+    transformed.show(false)
 
   }
 }
