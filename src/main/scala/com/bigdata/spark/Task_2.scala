@@ -1,7 +1,7 @@
 //package com.bigdata.spark
 
 import org.apache.log4j.{Level, Logger}
-import org.apache.spark.ml.feature.{CountVectorizer, IDF, MinHashLSH, RegexTokenizer}
+import org.apache.spark.ml.feature.{BucketedRandomProjectionLSH, CountVectorizer, IDF, MinHashLSH, RegexTokenizer}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.{LongType, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
@@ -60,23 +60,24 @@ object Task_2 {
 
     inverseDFIndex.show(false)
 
-    val mh = new MinHashLSH()
-      .setNumHashTables(500000)
+    val brp = new BucketedRandomProjectionLSH()
+      .setBucketLength(2.0)
+      .setNumHashTables(3)
       .setInputCol("features_idf")
       .setOutputCol("hashes")
 
-    val model = mh.fit(inverseDFIndex)
+    val model = brp.fit(inverseDFIndex)
 
     // Feature Transformation
     println("The hashed dataset where hashed values are stored in the column 'hashes':")
     model.transform(inverseDFIndex).show()
 
-    println("Approximately Jaccard distance smaller than 0.2:")
-    model.approxSimilarityJoin(inverseDFIndex, inverseDFIndex, .2, "JaccardDistance")
+    println("Approximately Euclidean distance smaller than 0.2:")
+    model.approxSimilarityJoin(inverseDFIndex, inverseDFIndex, 2, "Euclidean")
       .select(col("datasetA.index").alias("idA"),
         col("datasetB.index").alias("idB"),
-        col("JaccardDistance")).where(col("idA") =!= col("idB"))
-      .sort(col("JaccardDistance"))
+        col("Euclidean")).where(col("idA") =!= col("idB"))
+      .sort(col("Euclidean"))
       .show()
 
   }
