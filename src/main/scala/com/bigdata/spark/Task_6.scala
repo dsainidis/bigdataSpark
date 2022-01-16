@@ -1,0 +1,174 @@
+package org.example
+
+import org.apache.log4j.{Level, Logger}
+import org.apache.spark.ml.classification.RandomForestClassifier
+import org.apache.spark.ml.feature._
+import org.apache.spark.sql.SparkSession
+
+object Task_6 {
+  def main(args: Array[String]): Unit = {
+
+    Logger
+      .getLogger("org")
+      .setLevel(Level
+        .ERROR) // Hide logger from console if it is not an ERROR
+
+    val ss = SparkSession
+      .builder()
+      .master("local[2]")
+      .appName("task1")
+      .getOrCreate() // Create Spark Session
+
+    // Read input file, select the speeches and the date and create a column that contain only the years as we dont need
+    // the rest date
+    val inputFile = "./sample_preprocessed.csv"
+    val inputDF = ss
+      .read
+      .option("header", "true")
+      .csv(inputFile)
+      .na
+      .drop()
+
+    val target_categories = new StringIndexer()
+      .setInputCol("political_party")
+      .setOutputCol("indexed")
+      .fit(inputDF)
+      .transform(inputDF)
+      .select("political_party", "indexed")
+
+    val tmp = new StringIndexer()
+      .setInputCol("member_name")
+      .setOutputCol("member_name_encoded")
+      .fit(inputDF)
+      .transform(inputDF)
+      .drop("member_name", "speech")
+
+    val tmp_1 = new StringIndexer()
+      .setInputCol("sitting_date")
+      .setOutputCol("sitting_date_encoded")
+      .fit(tmp)
+      .transform(tmp)
+      .drop("sitting_date")
+
+    val tmp_2 = new StringIndexer()
+      .setInputCol("parliamentary_period")
+      .setOutputCol("parliamentary_period_encoded")
+      .fit(tmp_1)
+      .transform(tmp_1)
+      .drop("parliamentary_period")
+
+    val tmp_3 = new StringIndexer()
+      .setInputCol("parliamentary_session")
+      .setOutputCol("parliamentary_session_encoded")
+      .fit(tmp_2)
+      .transform(tmp_2)
+      .drop("parliamentary_session")
+
+    val tmp_4 = new StringIndexer()
+      .setInputCol("parliamentary_sitting")
+      .setOutputCol("parliamentary_sitting_encoded")
+      .fit(tmp_3)
+      .transform(tmp_3)
+      .drop("parliamentary_sitting")
+
+    val tmp_5 = new StringIndexer()
+      .setInputCol("political_party")
+      .setOutputCol("political_party_encoded")
+      .fit(tmp_4)
+      .transform(tmp_4)
+      .drop("political_party")
+
+    val tmp_6 = new StringIndexer()
+      .setInputCol("government")
+      .setOutputCol("government_encoded")
+      .fit(tmp_5)
+      .transform(tmp_5)
+      .drop("government")
+
+    val tmp_7 = new StringIndexer()
+      .setInputCol("member_region")
+      .setOutputCol("member_region_encoded")
+      .fit(tmp_6)
+      .transform(tmp_6)
+      .drop("member_region")
+
+    val tmp_8 = new StringIndexer()
+      .setInputCol("roles")
+      .setOutputCol("roles_encoded")
+      .fit(tmp_7)
+      .transform(tmp_7)
+      .drop("roles")
+
+    val tmp_9 = new StringIndexer()
+      .setInputCol("member_gender")
+      .setOutputCol("member_gender_encoded")
+      .fit(tmp_8)
+      .transform(tmp_8)
+      .drop("member_gender")
+
+    val tokenizer = new RegexTokenizer() //Tokenizer
+      .setPattern(" ")
+      .setInputCol("speech_processed")
+      .setOutputCol("tokens")
+
+    val tokenized_df = tokenizer
+      .transform(tmp_9)
+      .drop("speech_processed")
+
+    val vectorizer = new CountVectorizer() //CountVectorizer
+      .setInputCol("tokens")
+      .setOutputCol("features")
+      .setVocabSize(5000)
+      //.setMinDF(3)
+      .fit(tokenized_df)
+
+    val vectorizedDF = vectorizer
+      .transform(tokenized_df)
+
+    val idf = new IDF()
+      .setInputCol("features")
+      .setOutputCol("features_idf")
+      .fit(vectorizedDF)
+
+    val inverseDF = idf
+      .transform(vectorizedDF)
+      .drop("tokens", "features")
+
+    val feature_columns = inverseDF
+      .drop("_c0")
+      .columns
+
+    val assembler = new VectorAssembler()
+      .setInputCols(feature_columns)
+      .setOutputCol("features")
+
+    val data = assembler
+      .transform(inverseDF)
+      .withColumnRenamed("political_party_encoded", "label")
+
+    val splitSeed = 5043
+    val Array(trainingData, testData) = data
+      .randomSplit(Array(0.8, 0.2), splitSeed)
+
+    val rf = new RandomForestClassifier()
+      .setLabelCol("label")
+      .setFeaturesCol("features")
+
+    val trainedModel = rf
+      .fit(trainingData)
+
+    val predictions = trainedModel
+      .transform(testData)
+    val target_categories_distinct = target_categories
+      .select("political_party", "indexed")
+      .distinct()
+    val final_DF = predictions
+      .join(target_categories_distinct, predictions("prediction") === target_categories_distinct("indexed"), "inner")
+
+    final_DF.show()
+
+    println(trainedModel
+      .evaluate(testData)
+      .accuracy)
+  }
+}
