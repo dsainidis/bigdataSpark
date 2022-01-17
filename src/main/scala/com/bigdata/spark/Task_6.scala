@@ -180,9 +180,11 @@ object Task_6 {
     val final_DF = predictions // take predictions and the political party that each prediction corresponds
       .join(target_categories_distinct, predictions("prediction") === target_categories_distinct("indexed"), "inner")
 
+    println("Predictions and political party's that corresponds are:")
+    final_DF.show() // print
+    println("Predictions with all other information are:")
     final_DF.join(inputDFIndex, final_DF("index") === inputDFIndex("index"), "inner").show() // for the predictions
     // show and the rest of information from the initial dataframe
-    final_DF.show() // print
 
     println(trainedModel // print accuracy of model
       .evaluate(testData)

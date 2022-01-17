@@ -87,20 +87,21 @@ object Task_4 {
 
     // Join the smallest between two datasets to avoid nulls and compute cosine similarity between the speeches
     // before and after 2009. Then show the results ascending because small similarity means big distance
+    println("Most different pairs of members with respect to speeches are:")
     if (before_2009_final.rdd.count() >= after_2009_final.rdd.count()) {
-      after_2009_final
+      val results = after_2009_final
         .join(before_2009_final, Seq("member_name"))
         .withColumn("Similarity", cosSimilarity(col("features_idf_before_2009"), col("features_idf_after_2009")))
         .sort(col("Similarity").asc)
         .select("member_name", "Similarity")
-        .show(10)
+      results.show()
     }else{
-      before_2009_final
+      val results = before_2009_final
         .join(after_2009_final, Seq("member_name"))
         .withColumn("Similarity", cosSimilarity(col("features_idf_after_2009"), col("features_idf_before_2009")))
         .sort(col("Similarity").asc)
         .select("member_name", "Similarity")
-        .show(10)
+      results.show()
     }
 
     // Separate data for political party's before and after the financial crisis and rename some columns
@@ -111,20 +112,21 @@ object Task_4 {
 
     // Join the smallest between two datasets to avoid nulls and compute cosine similarity between the speeches
     // before and after 2009. Then show the results ascending because small similarity means big distance
+    println("Most different pairs of party's with respect to speeches are:")
     if (before_2009_final_political_party.rdd.count() >= after_2009_final_political_party.rdd.count()) {
-      after_2009_final_political_party
+      val results = after_2009_final_political_party
         .join(before_2009_final_political_party, Seq("political_party"))
         .withColumn("Similarity", cosSimilarity(col("features_idf_before_2009"), col("features_idf_after_2009")))
         .sort(col("Similarity").asc)
         .select("political_party", "Similarity")
-        .show(10)
+      results.show()
     }else{
-      before_2009_final_political_party
+      val results = before_2009_final_political_party
         .join(after_2009_final_political_party, Seq("political_party"))
         .withColumn("Similarity", cosSimilarity(col("features_idf_after_2009"), col("features_idf_before_2009")))
         .sort(col("Similarity").asc)
         .select("political_party", "Similarity")
-        .show(10)
+      results.show()
     }
   }
 }
