@@ -107,7 +107,7 @@ object Task_1 {
         .describeTopics(10)
 
       val termIndicesToWords = udf((x: mutable
-      .WrappedArray[Int]) => { //This function hepls to convert term indices back to words
+      .WrappedArray[Int]) => { //This function helps to convert term indices back to words
         x.map(i => vocab(i))
       })
 
