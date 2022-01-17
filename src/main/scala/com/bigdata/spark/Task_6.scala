@@ -32,17 +32,17 @@ object Task_6 {
     // Read input file, select the speeches and the date and create a column that contain only the years as we dont need
     // the rest date
     val inputFile = "./sample_preprocessed.csv"
-    val inputDF = ss
+    val inputDF = ss // read the data and drop nulls
       .read
       .option("header", "true")
       .csv(inputFile)
       .na
       .drop()
 
-    val inputDFIndex = addColumnIndex(inputDF)
+    val inputDFIndex = addColumnIndex(inputDF) // add monotonically increasing id to the dataframe
 
-
-    val target_categories = new StringIndexer()
+    // Encode every categorical feature of the data using StringIndexer
+    val target_categories = new StringIndexer() // keep separate the target categories
       .setInputCol("political_party")
       .setOutputCol("indexed")
       .fit(inputDFIndex)
@@ -151,37 +151,40 @@ object Task_6 {
       .drop("_c0")
       .columns
 
-    val assembler = new VectorAssembler()
+    val assembler = new VectorAssembler() // put all the features together
       .setInputCols(feature_columns)
       .setOutputCol("features")
 
     val data = assembler
       .transform(inverseDF)
-      .withColumnRenamed("political_party_encoded", "label")
+      .withColumnRenamed("political_party_encoded", "label") // Rename target column to label
+    // because RandomForestClassifier demands it
 
     val splitSeed = 5043
-    val Array(trainingData, testData) = data
+    val Array(trainingData, testData) = data // split the data to training and test data
       .randomSplit(Array(0.8, 0.2), splitSeed)
 
-    val rf = new RandomForestClassifier()
+    val rf = new RandomForestClassifier() // create random forest Classifier
       .setLabelCol("label")
       .setFeaturesCol("features")
 
-    val trainedModel = rf
+    val trainedModel = rf // train model
       .fit(trainingData)
 
-    val predictions = trainedModel
+    val predictions = trainedModel // predict
       .transform(testData)
-    val target_categories_distinct = target_categories
+    val target_categories_distinct = target_categories // take the distinct target categories and their numerical
+      // representations
       .select("political_party", "indexed")
       .distinct()
-    val final_DF = predictions
+    val final_DF = predictions // take predictions and the political party that each prediction corresponds
       .join(target_categories_distinct, predictions("prediction") === target_categories_distinct("indexed"), "inner")
 
-    final_DF.join(inputDFIndex, final_DF("index") === inputDFIndex("index"), "inner").show()
-    final_DF.show()
+    final_DF.join(inputDFIndex, final_DF("index") === inputDFIndex("index"), "inner").show() // for the predictions
+    // show and the rest of information from the initial dataframe
+    final_DF.show() // print
 
-    println(trainedModel
+    println(trainedModel // print accuracy of model
       .evaluate(testData)
       .accuracy)
   }
