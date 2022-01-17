@@ -28,8 +28,8 @@ object Task_4 {
       val vectorizer = new CountVectorizer() //CountVectorizer
         .setInputCol("tokens")
         .setOutputCol("features")
-        .setVocabSize(5000)
-        //.setMinDF(3)
+        .setVocabSize(20000)
+        .setMinDF(3)
         .fit(tokenized_df)
 
       val vectorizedDF = vectorizer

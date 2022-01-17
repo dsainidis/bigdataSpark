@@ -16,7 +16,7 @@ object Task_2 {
       .setLevel(Level
         .ERROR) // Hide logger from console if it is not an ERROR
 
-    val ss = SparkSession
+    val ss: SparkSession = SparkSession
       .builder()
       .master("local[*]")
       .appName("task2")
@@ -48,8 +48,8 @@ object Task_2 {
     val vectorizer = new CountVectorizer() //Use vectorizer to convert text to vector
       .setInputCol("tokens")
       .setOutputCol("features")
-      .setVocabSize(5000)
-      //.setMinDF(3)
+      .setVocabSize(20000)
+      .setMinDF(3)
       .fit(tokenized_df)
 
     val vectorizedDF = vectorizer.transform(tokenized_df).drop("speeches", "tokens") //Vectorize data
