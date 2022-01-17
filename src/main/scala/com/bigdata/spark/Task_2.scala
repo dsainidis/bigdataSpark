@@ -18,8 +18,8 @@ object Task_2 {
 
     val ss = SparkSession
       .builder()
-      .master("local[2]")
-      .appName("task1")
+      .master("local[*]")
+      .appName("task2")
       .getOrCreate() // Create Spark Session
 
     // Read input file, select the member_name, the speeches and the political_party and drop nulls

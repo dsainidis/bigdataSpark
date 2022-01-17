@@ -54,6 +54,7 @@ object Task_4 {
     val sc: SparkSession = SparkSession
       .builder()
       .master("local[*]")
+      .appName("task4")
       .getOrCreate() // Create Spark Session
 
     val cosSimilarity = udf { (x: Vector, y: Vector) => // Udf that calculates cosine Similarity of vectors

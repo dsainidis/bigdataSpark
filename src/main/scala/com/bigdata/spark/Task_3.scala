@@ -16,6 +16,7 @@ object Task_3 {
     val sc: SparkSession = SparkSession
       .builder()
       .master("local[*]")
+      .appName("task3")
       .getOrCreate() // Create Spark Session
 
     val initial_data = sc // Read the data and create a column Year that contains only the year from the date

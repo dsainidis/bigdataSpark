@@ -18,8 +18,8 @@ object Task_5 {
 
     val ss = SparkSession
       .builder()
-      .master("local[2]")
-      .appName("task1")
+      .master("local[*]")
+      .appName("task5")
       .getOrCreate() // Create Spark Session
 
     // Read input file, select the speeches and the date and create a column that contain only the years as we dont need

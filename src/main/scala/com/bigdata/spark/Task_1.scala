@@ -17,7 +17,7 @@ object Task_1 {
 
     val ss = SparkSession
       .builder()
-      .master("local[2]")
+      .master("local[*]")
       .appName("task1")
       .getOrCreate() // Create Spark Session
 
