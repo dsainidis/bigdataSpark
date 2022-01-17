@@ -3,7 +3,8 @@ package org.example
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.ml.classification.RandomForestClassifier
 import org.apache.spark.ml.feature._
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{DataFrame, Row, SparkSession}
+import org.apache.spark.sql.types.{LongType, StructField, StructType}
 
 object Task_6 {
   def main(args: Array[String]): Unit = {
@@ -13,11 +14,20 @@ object Task_6 {
       .setLevel(Level
         .ERROR) // Hide logger from console if it is not an ERROR
 
-    val ss = SparkSession
+    val ss: SparkSession = SparkSession
       .builder()
       .master("local[*]")
       .appName("task6")
       .getOrCreate() // Create Spark Session
+
+    def addColumnIndex(df: DataFrame) = { // function that helps to create increasingly id column
+      ss.sqlContext.createDataFrame(
+        df.rdd.zipWithIndex.map {
+          case (row, index) => Row.fromSeq(row.toSeq :+ index)
+        },
+        // Create schema for index column
+        StructType(df.schema.fields :+ StructField("index", LongType, nullable = false)))
+    }
 
     // Read input file, select the speeches and the date and create a column that contain only the years as we dont need
     // the rest date
@@ -29,18 +39,21 @@ object Task_6 {
       .na
       .drop()
 
+    val inputDFIndex = addColumnIndex(inputDF)
+
+
     val target_categories = new StringIndexer()
       .setInputCol("political_party")
       .setOutputCol("indexed")
-      .fit(inputDF)
-      .transform(inputDF)
+      .fit(inputDFIndex)
+      .transform(inputDFIndex)
       .select("political_party", "indexed")
 
     val tmp = new StringIndexer()
       .setInputCol("member_name")
       .setOutputCol("member_name_encoded")
-      .fit(inputDF)
-      .transform(inputDF)
+      .fit(inputDFIndex)
+      .transform(inputDFIndex)
       .drop("member_name", "speech")
 
     val tmp_1 = new StringIndexer()
@@ -118,8 +131,8 @@ object Task_6 {
     val vectorizer = new CountVectorizer() //CountVectorizer
       .setInputCol("tokens")
       .setOutputCol("features")
-      .setVocabSize(5000)
-      //.setMinDF(3)
+      .setVocabSize(20000)
+      .setMinDF(3)
       .fit(tokenized_df)
 
     val vectorizedDF = vectorizer
@@ -165,6 +178,7 @@ object Task_6 {
     val final_DF = predictions
       .join(target_categories_distinct, predictions("prediction") === target_categories_distinct("indexed"), "inner")
 
+    final_DF.join(inputDFIndex, final_DF("index") === inputDFIndex("index"), "inner").show()
     final_DF.show()
 
     println(trainedModel
