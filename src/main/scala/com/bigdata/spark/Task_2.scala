@@ -1,13 +1,8 @@
-package org.example
-
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.ml.feature.{BucketedRandomProjectionLSH, CountVectorizer, IDF, MinHashLSH, RegexTokenizer}
-import org.apache.spark.sql.functions._
+import org.apache.spark.sql.functions.{col, collect_list, concat_ws}
 import org.apache.spark.sql.types.{LongType, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
-
-import scala.language.postfixOps
-
 
 object Task_2 {
   def main(args: Array[String]): Unit = {
@@ -23,7 +18,7 @@ object Task_2 {
       .getOrCreate() // Create Spark Session
 
     // Read input file, select the member_name, the speeches and the political_party and drop nulls
-    val inputFile = "./sample_preprocessed.csv"
+    val inputFile = "./data_dropna_rm_morestop.csv"
     val rawDF = ss
       .read
       .option("header", "true")
@@ -48,13 +43,13 @@ object Task_2 {
     val vectorizer = new CountVectorizer() //Use vectorizer to convert text to vector
       .setInputCol("tokens")
       .setOutputCol("features")
-      .setVocabSize(20000)
+      .setVocabSize(5000)
       .setMinDF(3)
       .fit(tokenized_df)
 
     val vectorizedDF = vectorizer.transform(tokenized_df).drop("speeches", "tokens") //Vectorize data
 
-    val idf = new IDF()  // Compute IDF of rawFeatures from CountVectorizer
+    val idf = new IDF() // Compute IDF of rawFeatures from CountVectorizer
       .setInputCol("features")
       .setOutputCol("features_idf")
       .fit(vectorizedDF)
@@ -73,26 +68,53 @@ object Task_2 {
 
     val inverseDFIndex = addColumnIndex(inverseDF).drop("features")
 
-    val brp = new BucketedRandomProjectionLSH() // We will solve the all-pairs similarity problem using
-    // BucketedRandomProjectionLSH
-      .setBucketLength(12.0)
-      .setNumHashTables(3000)
+    var mh = new MinHashLSH()
+      .setNumHashTables(100)
       .setInputCol("features_idf")
       .setOutputCol("hashes")
 
     // the dataset is split into two parts for the function approxSimilarityJoin, otherwise there will
     // be produced duplicate pairs like (4,4).
-    val first_part_of_dataset = inverseDFIndex.where(col("index") < inverseDFIndex.rdd.count()/2)
-    val second_part_of_dataset = inverseDFIndex.where(col("index") >= inverseDFIndex.rdd.count()/2)
+    val first_part_of_dataset = inverseDFIndex.where(col("index") < inverseDFIndex.rdd.count() / 2)
+    val second_part_of_dataset = inverseDFIndex.where(col("index") >= inverseDFIndex.rdd.count() / 2)
 
-    val model = brp.fit(first_part_of_dataset) // fit the BucketedRandomProjectionLSH model
+    var model_mh = mh.fit(first_part_of_dataset) // fit the BucketedRandomProjectionLSH model
 
     // Feature Transformation
     println("The hashed dataset where hashed values are stored in the column 'hashes':")
-    model.transform(first_part_of_dataset).show()
+    model_mh.transform(first_part_of_dataset).show()
 
-    println("Approximately Euclidean distance smaller than 20:")
-    val results = model.approxSimilarityJoin(first_part_of_dataset, second_part_of_dataset, 20, "EuclideanDistance")
+    println("Approximately JaccardDistance distance smaller than 0.1:")
+    var results_Jaccard = model_mh.approxSimilarityJoin(first_part_of_dataset, second_part_of_dataset, .1, "JaccardDistance")
+      .select(col("datasetA.index").alias("idA"),
+        col("datasetB.index").alias("idB"),
+        col("datasetA.member_name").alias("member_name_A"),
+        col("datasetB.member_name").alias("member_name_B"),
+        col("datasetA.political_party").alias("political_party_A"),
+        col("datasetB.political_party").alias("political_party_B"),
+        col("JaccardDistance"))
+      .sort(col("JaccardDistance"))
+
+    results_Jaccard.show(results_Jaccard.count().asInstanceOf[Int],truncate = false)
+
+    results_Jaccard = null
+    model_mh = null
+    mh = null
+
+    var brp = new BucketedRandomProjectionLSH() // We will solve the all-pairs similarity problem using
+      // BucketedRandomProjectionLSH
+      .setBucketLength(5.0)
+      .setNumHashTables(300)
+      .setInputCol("features_idf")
+      .setOutputCol("hashes")
+
+    var model_brp = brp.fit(first_part_of_dataset)
+    // Feature Transformation
+    println("The hashed dataset where hashed values are stored in the column 'hashes':")
+    model_brp.transform(first_part_of_dataset).show()
+
+    println("Approximately EuclideanDistance distance smaller than 1:")
+    var results_Euclidean = model_brp.approxSimilarityJoin(first_part_of_dataset, second_part_of_dataset, .1, "EuclideanDistance")
       .select(col("datasetA.index").alias("idA"),
         col("datasetB.index").alias("idB"),
         col("datasetA.member_name").alias("member_name_A"),
@@ -102,6 +124,10 @@ object Task_2 {
         col("EuclideanDistance"))
       .sort(col("EuclideanDistance"))
 
-    results.show(truncate = false)
+    results_Euclidean.show(results_Euclidean.count().asInstanceOf[Int],truncate = false)
+
+    results_Euclidean = null
+    model_brp = null
+    brp = null
   }
 }

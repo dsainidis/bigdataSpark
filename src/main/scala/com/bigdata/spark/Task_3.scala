@@ -1,10 +1,6 @@
-package org.example
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
-
-import scala.language.postfixOps
-
 
 object Task_3 {
   def main(args: Array[String]): Unit = {
@@ -22,14 +18,15 @@ object Task_3 {
     val initial_data = sc // Read the data and create a column Year that contains only the year from the date
       .read
       .option("header", value = true)
-      .csv("sample_preprocessed.csv")
+      .csv("data_dropna_rm_morestop.csv")
       .withColumn("Year", split(col("sitting_date"), "/")
-      .getItem(2))
+        .getItem(2))
       .drop(col("sitting_date"))
 
     val years = initial_data //take all distinct years as a list
       .select("Year")
       .distinct()
+      .sort(col("Year").asc)
       .rdd
       .collect()
       .toList
@@ -41,21 +38,32 @@ object Task_3 {
       .collect()
       .toList
 
-    for (element <- years){ // for each single year find its keywords
-      println("Keywords for year", element(0), "are:")
-      find_keywords("Year", element(0))
+    val members = initial_data //take all distinct political party's as a list
+      .select("member_name")
+      .distinct()
+      .rdd
+      .collect()
+      .toList
+
+    for (m <- members) {
+      for (y <- years) { // for each single year find its keywords
+        println("Keywords for member", m(0), "and year", y(0), "are:")
+        find_keywords("member_name",m(0), "Year", y(0))
+      }
     }
 
-    for (element <- party){ // for each single party find its keywords
-      println("Keywords for party", element(0), "are:")
-      find_keywords("political_party", element(0))
+    for (p <- party) { // for each single party find its keywords
+      for (y <- years) {
+        println("Keywords for party", p(0), "and year", y(0), "are:")
+        find_keywords("political_party", p(0), "Year", y(0))
+      }
     }
 
-    def find_keywords(c:String, value: Any): Unit = { // function that finds keywords
+    def find_keywords(c: String, value: Any, c1: String, value1: Any): Unit = { // function that finds keywords
 
       val preprocessed_speeches = initial_data // choose the data
+        .where(col(c) === value && col(c1) === value1)
         .select(split(col("speech_processed"), " "))
-        .where(col(c) === value)
         .withColumn("doc_id", monotonically_increasing_id())
         .withColumnRenamed("split(speech_processed,  , -1)", "speech_processed")
 
@@ -95,12 +103,15 @@ object Task_3 {
         .join(tokensWithIdf, Seq("token"), "left")
         .withColumn("tf_idf", col("tf") * col("idf"))
 
-      tokensWith_tf_Idf // Show results
+      val results = tokensWith_tf_Idf // Show results
         .withColumnRenamed("token", "Keywords")
-        .orderBy(col("tf_idf")
+        .groupBy("Keywords")
+        .sum("tf_idf")
+        .orderBy(col("sum(tf_idf)")
           .desc)
         .select("Keywords")
-        .show(15)
+
+      results.show(10, truncate = false)
     }
   }
 }

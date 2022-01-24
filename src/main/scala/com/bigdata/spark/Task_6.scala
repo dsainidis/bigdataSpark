@@ -1,10 +1,8 @@
-package org.example
-
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.ml.classification.RandomForestClassifier
 import org.apache.spark.ml.feature._
-import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.apache.spark.sql.types.{LongType, StructField, StructType}
+import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 
 object Task_6 {
   def main(args: Array[String]): Unit = {
@@ -186,8 +184,8 @@ object Task_6 {
     final_DF.join(inputDFIndex, final_DF("index") === inputDFIndex("index"), "inner").show() // for the predictions
     // show and the rest of information from the initial dataframe
 
-    println(trainedModel // print accuracy of model
-      .evaluate(testData)
-      .accuracy)
+//    println(trainedModel // print accuracy of model
+//      .evaluate(testData)
+//      .accuracy)
   }
 }

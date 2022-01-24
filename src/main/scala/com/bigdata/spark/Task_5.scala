@@ -1,10 +1,8 @@
-package org.example
-
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.ml.clustering.LDA
 import org.apache.spark.ml.feature.{CountVectorizer, IDF, RegexTokenizer}
+import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{DataFrame, SparkSession}
-import org.apache.spark.sql.functions.{col, count, explode, monotonically_increasing_id, split, udf}
 
 import scala.collection.mutable
 
@@ -49,7 +47,7 @@ object Task_5 {
     val vectorizer = new CountVectorizer() // CountVectorizer
       .setInputCol("tokens")
       .setOutputCol("rawFeatures")
-      .setVocabSize(20000)
+      .setVocabSize(5000)
       .setMinDF(3)
       .fit(tokenized_df)
 
@@ -107,7 +105,7 @@ object Task_5 {
       .collect()
       .toList
 
-    def count_words(value: Any, colum:String): Unit = { // function that simply counts the words from data
+    def count_words(value: Any, colum: String): Unit = { // function that simply counts the words from data
 
       val preprocessed_speeches = initial_data // select data
         .where(col(colum) === value)
@@ -129,7 +127,7 @@ object Task_5 {
       tokensWithTf.show()
     }
 
-    for (i <- members){ // for all members compute most frequent words
+    for (i <- members) { // for all members compute most frequent words
       println("Most used words of member", i, "are")
       count_words(i(0), "member_name")
     }
@@ -141,7 +139,7 @@ object Task_5 {
       .collect()
       .toList
 
-    for (i <- partys){ // for all party's compute most frequent words
+    for (i <- partys) { // for all party's compute most frequent words
       println("Most used words of party", i, "are")
       count_words(i(0), "political_party")
     }

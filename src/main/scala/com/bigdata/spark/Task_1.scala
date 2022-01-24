@@ -1,5 +1,3 @@
-package org.example
-
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.ml.clustering.LDA
 import org.apache.spark.ml.feature.{CountVectorizer, IDF, RegexTokenizer}
@@ -50,7 +48,7 @@ object Task_1 {
     val vectorizer = new CountVectorizer() //Use vectorizer to convert text to vector
       .setInputCol("tokens")
       .setOutputCol("rawFeatures")
-      .setVocabSize(20000)
+      .setVocabSize(5000)
       .setMinDF(3)
       .fit(tokenized_df)
 
@@ -77,13 +75,13 @@ object Task_1 {
     println("All years topics")
     find_topics(inverseDF)
 
-    for (element <- years){ // for each single year find topics and its keywords
+    for (element <- years) { // for each single year find topics and its keywords
       val tempDF = inverseDF.where(col("Year") === element(0))
       println("Year", element(0), "topics are:")
       find_topics(tempDF)
     }
 
-    def find_topics(df:DataFrame): Unit = { // function for finding topics
+    def find_topics(df: DataFrame): Unit = { // function for finding topics
       val corpus = df
         .select("id", "features")
 
