@@ -1,8 +1,10 @@
+package org.example
+
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.ml.classification.RandomForestClassifier
 import org.apache.spark.ml.feature._
-import org.apache.spark.sql.types.{LongType, StructField, StructType}
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
+import org.apache.spark.sql.types.{LongType, StructField, StructType}
 
 object Task_6 {
   def main(args: Array[String]): Unit = {
@@ -29,7 +31,7 @@ object Task_6 {
 
     // Read input file, select the speeches and the date and create a column that contain only the years as we dont need
     // the rest date
-    val inputFile = "./sample_preprocessed.csv"
+    val inputFile = "./data_dropna_rm_morestop.csv"
     val inputDF = ss // read the data and drop nulls
       .read
       .option("header", "true")
@@ -129,7 +131,7 @@ object Task_6 {
     val vectorizer = new CountVectorizer() //CountVectorizer
       .setInputCol("tokens")
       .setOutputCol("features")
-      .setVocabSize(20000)
+      .setVocabSize(5000)
       .setMinDF(3)
       .fit(tokenized_df)
 
@@ -164,6 +166,7 @@ object Task_6 {
 
     val rf = new RandomForestClassifier() // create random forest Classifier
       .setLabelCol("label")
+      .setMaxBins(5000)
       .setFeaturesCol("features")
 
     val trainedModel = rf // train model
@@ -184,8 +187,8 @@ object Task_6 {
     final_DF.join(inputDFIndex, final_DF("index") === inputDFIndex("index"), "inner").show() // for the predictions
     // show and the rest of information from the initial dataframe
 
-//    println(trainedModel // print accuracy of model
-//      .evaluate(testData)
-//      .accuracy)
+    println(trainedModel // print accuracy of model
+      .evaluate(testData)
+      .accuracy)
   }
 }
