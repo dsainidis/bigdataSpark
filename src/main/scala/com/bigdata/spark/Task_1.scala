@@ -21,7 +21,7 @@ object Task_1 {
 
     // Read input file, select the speeches and the date and create a column that contain only the years as we dont need
     // the rest date
-    val inputFile = "./sample_preprocessed.csv"
+    val inputFile = "./data_dropna_rm_morestop.csv"
     val inputDF = ss
       .read
       .option("header", "true")
@@ -75,17 +75,18 @@ object Task_1 {
     println("All years topics")
     find_topics(inverseDF)
 
-    for (element <- years) { // for each single year find topics and its keywords
-      val tempDF = inverseDF.where(col("Year") === element(0))
-      println("Year", element(0), "topics are:")
+    years.foreach(row=>{ // for each single year find topics and its keywords
+      val tempDF = inverseDF.where(col("Year") === row(0))
+      println("Year", row(0), "topics are:")
       find_topics(tempDF)
-    }
+    })
 
     def find_topics(df: DataFrame): Unit = { // function for finding topics
       val corpus = df
         .select("id", "features")
 
       val lda = new LDA() //Topics are discovered using LDA clustering
+        .setSeed(0)
         .setOptimizer("em")
         .setK(10)
         .setMaxIter(50)

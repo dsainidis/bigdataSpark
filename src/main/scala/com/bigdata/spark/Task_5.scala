@@ -22,7 +22,7 @@ object Task_5 {
 
     // Read input file, select the speeches and the date and create a column that contain only the years as we dont need
     // the rest date
-    val inputFile = "./sample_preprocessed.csv"
+    val inputFile = "./data_dropna_rm_morestop.csv"
     val inputDF = ss
       .read
       .option("header", "true")
@@ -65,6 +65,7 @@ object Task_5 {
       val corpus = df.select("id", "features")
 
       val lda = new LDA()
+        .setSeed(0)
         .setOptimizer("em")
         .setK(10)
         .setMaxIter(50)
@@ -88,15 +89,20 @@ object Task_5 {
       topics
     }
 
+    // find the topics for all years and take each word separately as a dataframe column
     println("All year topics")
     val topics = find_topics(inverseDF)
     val topic_words = topics.select("topic", "termWeights", "topicWords")
+    val topic_words_explode = topic_words.columns
+      .map(col) :+
+      (explode(col("topicWords")) as "token")
+    val topic_words_explode_ = topics.select(topic_words_explode: _*).drop("topicWords")
     topic_words.show(false)
 
     val initial_data = ss // read the data again
       .read
       .option("header", value = true)
-      .csv("sample_preprocessed.csv")
+      .csv("./data_dropna_rm_morestop.csv")
 
     val members = initial_data // take all member names
       .select(col("member_name"))
@@ -124,13 +130,20 @@ object Task_5 {
         .agg(count("token") as "tf")
         .sort(col("tf").desc)
 
-      tokensWithTf.show()
+      val results = tokensWithTf // create the results by joining the topic words and the member's or party's words
+        // and count them with respect to the topic each word belongs
+        .join(topic_words_explode_, tokensWithTf("token") === topic_words_explode_("token"), "inner")
+        .groupBy("topic")
+        .sum("tf")
+        .sort(col("sum(tf)").desc)
+
+      results.show()
     }
 
-    for (i <- members) { // for all members compute most frequent words
+    members.foreach(i=>{ // for all members compute most frequent words
       println("Most used words of member", i, "are")
       count_words(i(0), "member_name")
-    }
+    })
 
     val partys = initial_data // take all party's to a list
       .select(col("political_party"))
@@ -139,9 +152,9 @@ object Task_5 {
       .collect()
       .toList
 
-    for (i <- partys) { // for all party's compute most frequent words
+    partys.foreach(i=>{ // for all party's compute most frequent words
       println("Most used words of party", i, "are")
       count_words(i(0), "political_party")
-    }
+    })
   }
 }
