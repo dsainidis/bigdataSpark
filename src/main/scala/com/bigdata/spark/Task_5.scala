@@ -136,6 +136,7 @@ object Task_5 {
         .groupBy("topic")
         .sum("tf")
         .sort(col("sum(tf)").desc)
+        .withColumnRenamed("sum(tf)", "words")
 
       results.show()
     }
